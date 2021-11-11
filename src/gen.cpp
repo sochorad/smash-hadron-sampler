@@ -20,6 +20,17 @@ const double C_Feq = (pow(0.5/M_PI/hbarC,3)) ;
 // #  also, pre-BOOSTED dsigma is used                      #
 // ##########################################################
 
+///////////////////////////////
+/// PROTOTYPES DECLARATIONS ///
+///////////////////////////////
+
+void fillBoostMatrix(double vx, double vy, double vz, double boostMatrix [4][4]);
+
+int index44(const int &i, const int &j);
+
+//////////////////////////////////////
+/// END OF PROTOTYPES DECLARATIONS ///
+//////////////////////////////////////
 
 // active Lorentz boost
 void fillBoostMatrix(double vx, double vy, double vz, double boostMatrix [4][4])
@@ -56,6 +67,41 @@ int index44(const int &i, const int &j){
 
 namespace gen{
 
+///////////////////////////////
+/// PROTOTYPES DECLARATIONS ///
+///////////////////////////////
+
+int delta_fnc(int i, int j);
+
+int doublefactorial(int n);
+
+double integrand(double x, int q, int k, double *par);
+
+double integral(int q, int k, double *par, int n);
+
+double Q(double T, double P_eq, double N20, double J30, double M10);
+
+double F(double T, double P_eq, double N20, double M10, double J30);
+
+double beta_Pi(double T, double P_eq, double J32, double N20, double J30, double M10);
+
+double beta_pi(double T, double J32);
+
+double *getA_ij(double *pi, double Pi, double T, double P_eq, double J32, double N20, double J30, double M10);
+
+double ffthermal(double *x, double *par);
+
+TLorentzVector vector_vector(double *vec_a, TLorentzVector vec_b);
+
+//int generate();
+
+//void acceptParticle(int ievent, const smash::ParticleTypePtr &ldef, smash::FourVector position, smash::FourVector momentum);
+
+//////////////////////////////////////
+/// END OF PROTOTYPES DECLARATIONS ///
+//////////////////////////////////////
+
+
 
 int Nelem ;
 double *ntherm, dvMax, dsigmaMax ;
@@ -79,6 +125,7 @@ int *npart ;               // number of generated particles in each event
 const double c1 = pow(1./2./hbarC/TMath::Pi(),3.0) ;
 double *cumulantDensity ; // particle densities (thermal). Seems to be redundant, but needed for fast generation
 double totalDensity ; // sum of all thermal densities
+
 
 
 // ######## load the elements
@@ -193,7 +240,226 @@ void load(char *filename, int N)
 
 void acceptParticle(int event, const smash::ParticleTypePtr &ldef, smash::FourVector position, smash::FourVector momentum) ;
 
+int delta_fnc(int i, int j)
+{
+  if(i==j)
+    {
+      return 1;
+    }
+  else 
+    {
+      return 0;
+    }
+}
 
+int doublefactorial(int n)
+{
+  int i;
+  double res=1.0;
+  for(i=n;i>=1;i-=2)
+    {
+      res *=i;
+    }
+  return res;
+}
+
+/*
+double gmunumatrix(int m, int n)
+{
+  if(m==0 & n==0)
+    {
+      return 1.0;
+    }
+  else if (m==1 & n==1 || m==2 & n==2 || m==3 & n==3)
+    {
+      return -1.0;
+    }
+  else 
+    {
+      return 0;
+    }
+}
+*/
+
+/*
+double integrand(double *x, int k, int l, int q, int k, double *mom)
+{
+  doubel pp = 0.0;
+  for(int i=1; i<4; i++)
+  {
+    for(int j=1; j<4; j++)
+    {
+      pp += pow(-mom[i]*(gmumumatrix(i,j) - surf[iel].u[i]*surf[iel].u[j])*mom[j],q);
+
+    }
+  }
+  
+  return c1/(sqrt(x[0]*x[0]+mass*mass)) * (pow(sqrt(x[0]*x[0]+mass*mass),k-2*q)) / doublefactorial(2*q+1)*pp*x[0]*x[0] / 
+        ( exp((sqrt(x[0]*x[0]+mass*mass)-mu)/T) - stat ) *
+        (1 - (1.0/g) * stat*x[0]*x[0]/( exp((sqrt(x[0]*x[0]+mass*mass)-mu)/T) - stat ));
+}
+*/
+
+double integrand(double x, int q, int k, double *par)
+{
+  double &T = par[0] ;
+  double &mu = par[1] ;
+  double &mass = par[2] ;
+  double &stat = par[3] ;
+
+  return -4*TMath::Pi()*c1*(1/x)*pow(mass,2+k)*1/(doublefactorial(2*q+1))*pow(cosh(log(x)),k-2*q)*pow(sinh(log(x)),2+2*q)*
+         1/(exp(mass*cosh(log(x)) - mu)/T - stat)*(1 + stat*1/(exp(mass*cosh(log(x)) - mu)/T - stat));
+}
+
+double integral(int q, int k, double *par, int n)  //Midpoint rule
+{
+  double x, tnm, sum, del, ddel, a, b;
+  static float s;
+  int it, j;
+  b = 1;
+  a = 0;
+  if (n==1)
+    {
+      return (s = (b-a)*integrand(0.5*(a+b),q,k,par));
+    }
+   else {
+    for (it=1, j=1; j<n-1; j++) it*=3;
+      tnm = it;
+      del = (b-a)/(3.0*tnm);
+      ddel = del + del;
+      x = a + 0.5*del;
+      sum = 0.0;
+      for (j=1; j<=it; j++)
+        {
+          sum += integrand(x,q,k, par);
+          x += ddel;
+          sum += integrand(x,q,k, par);
+          x += del;
+        }
+      s = (s + (b-a)*sum/tnm)/3.0;
+      return s;   
+   }
+ } 
+
+
+
+
+/*
+double integral(int q, int k, double *par)  //Rombergova metoda
+{
+    long double a = 0.000000001;  //x_min
+    long double b = 0.999999999;  //x_max
+    int N = 5000;
+    double sum;
+    double h;
+    double vysledek = 0.;
+
+    long double *R[N];  //pole pro pravdìpodobnost P
+  for (int i = 0; i < N; i++)
+  {
+    R[i] = (long double *)malloc(N * sizeof(long double));
+  }
+
+
+  R[0][0]=(double)0.5*(b-a)*(integrand(a,q,k, *par) + integrand(b,q,k, *par));
+    for (int n=1;n<=N;n++)
+    {
+        sum=0;
+        h=1/pow(2,n)*(b-a);
+        for(int k=1;k<=pow(2,n-1);k++)
+            {
+                sum+=integrand((a + (2*k-1)*h),q,k, *par);
+            }
+
+        R[n][0]=0.5*R[n-1][0]+h*sum;
+
+        for(int m=1; m<=n; m++){
+            R[n][m] = (1/(pow(4,m)-1))*(pow(4,m)*R[n][m-1] - R[n-1][m-1]);
+            //cout << n << "\t" << m << "\t" << R[n][m] << endl;
+        }
+
+        if(fabs(R[n][n])<0.0001 && n>4) {
+          vysledek = 0;
+          break;
+        }
+        if(fabs((R[n][n] - R[n-1][n-1])/R[n][n]) < 0.0001 && n>4) {
+          //cout << n << "\t" << R[n][n] << endl;
+          vysledek = R[n][n];
+          break;
+        }
+    }
+    // Teraz musis zmazat pole, ktore si vytvorila, aby neostalo v pamati
+    if (vysledek == 0) vysledek = R[N-1][N-1];
+    for (long ind = 0; ind < N; ind++) {
+      delete[] R[ind];
+    }
+    delete [] R;
+    //cout << vysledok << endl;
+    return vysledek;
+}
+*/
+
+
+double Q(double T, double P_eq, double N20, double J30, double M10)
+{
+  return T*(P_eq*N20-totalDensity*J30)/(J30*M10-pow(N20,2));
+}
+
+double F(double T, double P_eq, double N20, double M10, double J30)
+{
+  return pow(T,2)*(totalDensity*N20 - P_eq*M10)/(J30*M10 - pow(N20,2));
+}
+
+double beta_Pi(double T, double P_eq, double J32, double N20, double J30, double M10)
+{
+  return Q(T, P_eq, N20, J30, M10)*totalDensity*T + F(T, P_eq, N20, M10, J30)*P_eq/T + 5.0*J32/(3.0*T);
+}
+
+double beta_pi(double T, double J32)
+{
+  return J32/T;
+}
+
+
+double *getA_ij(double *pi, double Pi, double T, double P_eq, double J32, double N20, double J30, double M10)
+{
+  double *A_ij = new double[10];
+  for(int i=0; i<4; i++)
+  {
+    for(int j=i; j<4; j++)
+    {
+      A_ij[i*3 + j] = (1.0 + 1.0/(3.0* beta_Pi(T, P_eq, J32, N20, J30, M10)) * Pi) * delta_fnc(i,j) + 1./(3.*beta_pi(T, J32))*pi[index44(i,j)];
+      //cout << A_ij[i*3 + j] << " " <<delta_fnc(i,j) <<endl;
+    }
+  }
+  return A_ij;
+}
+
+TLorentzVector vector_vector(double *vec_a, TLorentzVector vec_b)
+{
+  TLorentzVector vec_c;
+  vec_c[3] = vec_a[0]*vec_b[3] + vec_a[1]*vec_b[0] + vec_a[2]*vec_b[1] + vec_a[3]*vec_b[2];
+  vec_c[0] = vec_a[1]*vec_b[3] + vec_a[4]*vec_b[0] + vec_a[5]*vec_b[1] + vec_a[6]*vec_b[2];
+  vec_c[1] = vec_a[2]*vec_b[3] + vec_a[5]*vec_b[0] + vec_a[7]*vec_b[1] + vec_a[8]*vec_b[2];
+  vec_c[2] = vec_a[3]*vec_b[3] + vec_a[6]*vec_b[0] + vec_a[8]*vec_b[1] + vec_a[9]*vec_b[2];
+  return vec_c;
+}
+/*
+double det_A(double *pi, double Pi, double T, double P_eq, double J32, double N20, double J30, double M10)
+{ 
+    double *A = A_ij(pi, Pi, T, P_eq, J32, N20, J30, M10);
+    double determinant;
+    determinant = A[0]*A[4]*A[8] + A[1]*A[5]*A[6] + A[2]*A[3]*A[7] - A[2]*A[4]*A[6] - A[1]*A[3]*A[8] - A[0]*A[5]*A[7];
+    return determinant;
+}
+
+double Z_n(double *pi, double Pi, double T, double P_eq, double J32, double N20, double J30, double M10)
+{
+  return 1/det_A(pi, Pi, T, P_eq, J32, N20, J30, M10);
+}
+*/
+
+/*
 double ffthermal(double *x, double *par)
 {
   double &T = par[0] ;
@@ -202,16 +468,39 @@ double ffthermal(double *x, double *par)
   double &stat = par[3] ;
   return x[0]*x[0]/( exp((sqrt(x[0]*x[0]+mass*mass)-mu)/T) - stat ) ;
 }
+*/
+
+double ffthermal(double *x, double *par)
+{
+  double &T = par[0] ;
+  double &mu = par[1] ;
+  double &mass = par[2] ;
+  double &stat = par[3] ;
+  double &Pi = par[4];
+  double &baryon_number = par[5];
+  double &P_eq = par[6];
+  //double &totalDensity = par[7];
+  double &J32 = par[7];
+  double &N20 = par[8];
+  double &J30 = par[9];
+  double &M10 = par[10];
+
+  return x[0]*x[0]/(exp(sqrt(x[0]*x[0]+mass*mass)/(T+Pi*F(T, P_eq, N20, M10, J30)/
+    beta_Pi(T, P_eq, J32, N20, J30, M10))-(mu/T + baryon_number*Pi*Q(T, P_eq, N20, J30, M10)/beta_Pi(T, P_eq, J32, N20, J30, M10))) - stat);
+}
 
 
 int generate()
 {
- const double gmumu [4] = {1., -1., -1., -1.} ;
- TF1 *fthermal = new TF1("fthermal",ffthermal,0.0,10.0,4) ;
- TLorentzVector mom ;
+ //const double gmumu [4] = {1., -1., -1., -1.} ;
+ TF1 *fthermal = new TF1("fthermal",ffthermal,0.0,10.0,11) ;
+ TLorentzVector mom, mom_prim ;
  for(int iev=0; iev<params::NEVENTS; iev++) npart[iev] = 0 ;
  int nmaxiter = 0 ;
  int ntherm_fail=0 ;
+ double J32, J30, N20, M10 ; //sumation variables
+ double partpar[4];
+ //double P_eq = 1.0;
 
  // List species that should not be sampled: photon, electron, muon, tau
  // Sigma meson needs to be excluded to generate correct multiplicities
@@ -220,6 +509,10 @@ int generate()
 
  for(int iel=0; iel<Nelem; iel++){ // loop over all elements
   // ---> thermal densities, for each surface element
+   J32 = 0.0; 
+   J30 = 0.0; 
+   N20 = 0.0; 
+   M10 = 0.0;
    totalDensity = 0.0 ;
    if(surf[iel].T<=0.){ ntherm_fail++ ; continue ; }
 
@@ -240,6 +533,17 @@ int generate()
       // SMASH quantum charges for the hadron state
       const double muf = particle.baryon_number()*surf[iel].mub + particle.strangeness()*surf[iel].mus +
                  particle.charge()*surf[iel].muq ;
+      partpar[0] = surf[iel].T;
+      partpar[1] = muf;
+      partpar[2] = mass;
+      partpar[3] = stat;
+      //integration depth
+      int n = 1;
+      J32 += integral(3, 2, partpar, n); 
+      J30 += integral(3, 0, partpar,n ); 
+      N20 += particle.baryon_number()*integral(2, 0, partpar, n); 
+      M10 += particle.baryon_number()*particle.baryon_number()*integral(1, 0, partpar, n);
+
       for(int i=1; i<11; i++)
       density += (2.*J+1.)*pow(gevtofm,3)/(2.*pow(TMath::Pi(),2))*mass*mass*surf[iel].T*pow(stat,i+1)*TMath::BesselK(2,i*mass/surf[iel].T)*exp(i*muf/surf[iel].T)/i ;
     }
@@ -283,16 +587,19 @@ int generate()
    const double muf = part.baryon_number()*surf[iel].mub + part.strangeness()*surf[iel].mus +
                part.charge()*surf[iel].muq ;
    if(muf>=mass) cout << " ^^ muf = " << muf << "  " << part.pdgcode() << endl ;
-   fthermal->SetParameters(surf[iel].T,muf,mass,stat) ;
+   fthermal->SetParameters(surf[iel].T, muf, mass, stat, surf[iel].Pi, part.baryon_number(), params::ecrit*1.15, J32, N20, J30, M10);
    //const double dfMax = part->GetFMax() ;
    int niter = 0 ; // number of iterations, for debug purposes
    do{ // fast momentum generation loop
    const double p = fthermal->GetRandom() ;
+   //const double p = A_ij(surf[iel].pi, surf[iel].Pi, surf[iel].T, P_eq, J32, N20, J30, M10)*p_prim;
    const double phi = 2.0*TMath::Pi()*rnd->Rndm() ;
    const double sinth = -1.0 + 2.0*rnd->Rndm() ;
-   mom.SetPxPyPzE(p*sqrt(1.0-sinth*sinth)*cos(phi), p*sqrt(1.0-sinth*sinth)*sin(phi), p*sinth, sqrt(p*p+mass*mass) ) ;
+   mom_prim.SetPxPyPzE(p*sqrt(1.0-sinth*sinth)*cos(phi), p*sqrt(1.0-sinth*sinth)*sin(phi), p*sinth, sqrt(p*p+mass*mass) ) ;
+   mom = vector_vector(getA_ij(surf[iel].pi,  surf[iel].Pi,  surf[iel].T, params::ecrit*1.15, J32, N20, J30, M10), mom_prim);
    W = ( surf[iel].dsigma[0]*mom.E() + surf[iel].dsigma[1]*mom.Px() +
         surf[iel].dsigma[2]*mom.Py() + surf[iel].dsigma[3]*mom.Pz() ) / mom.E() ;
+   /*
    double WviscFactor = 1.0 ;
    if(params::shear){
     const double feq = C_Feq/( exp((sqrt(p*p+mass*mass)-muf)/surf[iel].T) - stat ) ;
@@ -306,6 +613,7 @@ int generate()
     //if(WviscFactor>1.2) WviscFactor = 1.2 ; //              before: 1.5
    }
    W *= WviscFactor ;
+   */
    rval = rnd->Rndm()*dsigmaMax ;
    niter++ ;
    }while(rval>W) ; // end fast momentum generation
@@ -325,8 +633,8 @@ int generate()
   if(iel%(Nelem/50)==0) cout<<(iel*100)/Nelem<<" % done, maxiter= "<<nmaxiter<<endl ;
  } // loop over all elements
  cout << "therm_failed elements: " <<ntherm_fail << endl ;
- return npart[0] ;
  delete fthermal ;
+ return npart[0] ;
 }
 
 
