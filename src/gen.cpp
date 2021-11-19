@@ -47,7 +47,7 @@ void fillBoostMatrix(double vx, double vy, double vz, double boostMatrix [4][4])
   if(v2>0.0){
   for(int i=1; i<4; i++)
   for(int j=1; j<4; j++)
-   boostMatrix[i][j] = (gamma-1.0)*vv[i-1]*vv[j-1]/v2 ;
+   boostMatrix[i][j] = (gamma-1.0)*vv[i-1]*vv[j-1]/v2  ;
   }else{
   for(int i=1; i<4; i++)
   for(int j=1; j<4; j++)
@@ -423,18 +423,27 @@ double beta_pi(double T, double J32)
 
 double *getA_ij(double *pi, double Pi, double T, double P_eq, double J32, double N20, double J30, double M10)
 {
-  double *A_ij = new double[10];
-  for(int i=0; i<4; i++)
+  double *A_ij = new double[6];
+  for(int i=1; i<4; i++)
   {
     for(int j=i; j<4; j++)
     {
-      A_ij[i*3 + j] = (1.0 + 1.0/(3.0* beta_Pi(T, P_eq, J32, N20, J30, M10)) * Pi) * delta_fnc(i,j) + 1./(3.*beta_pi(T, J32))*pi[index44(i,j)];
-      //cout << A_ij[i*3 + j] << " " <<delta_fnc(i,j) <<endl;
+      A_ij[index44(i-1,j-1)] = (1.0 + 1.0/(3.0* beta_Pi(T, P_eq, J32, N20, J30, M10)) * Pi) * delta_fnc(i,j) + 1./(2.*beta_pi(T, J32))*pi[index44(i,j)];
+      //cout << A_ij[index44(i,j)] << " " <<delta_fnc(i,j) <<endl;
     }
   }
   return A_ij;
 }
 
+TLorentzVector vector_vector(double *vec_a, TLorentzVector vec_b)
+{
+  TLorentzVector vec_c;
+  vec_c[0] = vec_a[0]*vec_b[0] + vec_a[1]*vec_b[1] + vec_a[2]*vec_b[2];
+  vec_c[1] = vec_a[1]*vec_b[0] + vec_a[3]*vec_b[1] + vec_a[4]*vec_b[2];
+  vec_c[2] = vec_a[2]*vec_b[0] + vec_a[4]*vec_b[1] + vec_a[5]*vec_b[2];
+  return vec_c;
+}
+/*
 TLorentzVector vector_vector(double *vec_a, TLorentzVector vec_b)
 {
   TLorentzVector vec_c;
@@ -444,6 +453,7 @@ TLorentzVector vector_vector(double *vec_a, TLorentzVector vec_b)
   vec_c[2] = vec_a[3]*vec_b[3] + vec_a[6]*vec_b[0] + vec_a[8]*vec_b[1] + vec_a[9]*vec_b[2];
   return vec_c;
 }
+*/
 /*
 double det_A(double *pi, double Pi, double T, double P_eq, double J32, double N20, double J30, double M10)
 { 
@@ -595,8 +605,9 @@ int generate()
    //const double p = A_ij(surf[iel].pi, surf[iel].Pi, surf[iel].T, P_eq, J32, N20, J30, M10)*p_prim;
    const double phi = 2.0*TMath::Pi()*rnd->Rndm() ;
    const double sinth = -1.0 + 2.0*rnd->Rndm() ;
-   mom_prim.SetPxPyPzE(p*sqrt(1.0-sinth*sinth)*cos(phi), p*sqrt(1.0-sinth*sinth)*sin(phi), p*sinth, sqrt(p*p+mass*mass) ) ;
-   mom = vector_vector(getA_ij(surf[iel].pi,  surf[iel].Pi,  surf[iel].T, params::ecrit*1.15, J32, N20, J30, M10), mom_prim);
+   mom_prim.SetPxPyPzE(p*sqrt(1.0-sinth*sinth)*cos(phi), p*sqrt(1.0-sinth*sinth)*sin(phi), p*sinth, 0 ) ;
+   mom  = vector_vector(getA_ij(surf[iel].pi,  surf[iel].Pi,  surf[iel].T, params::ecrit*1.15, J32, N20, J30, M10), mom_prim);
+   mom.SetPxPyPzE(mom.Px(),mom.Py(),mom.Pz(),sqrt(mom.Px()*mom.Px() + mom.Py()*mom.Py() + mom.Pz()*mom.Pz() + mass*mass));
    W = ( surf[iel].dsigma[0]*mom.E() + surf[iel].dsigma[1]*mom.Px() +
         surf[iel].dsigma[2]*mom.Py() + surf[iel].dsigma[3]*mom.Pz() ) / mom.E() ;
    /*
