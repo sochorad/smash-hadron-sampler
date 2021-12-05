@@ -65,6 +65,7 @@ int index44(const int &i, const int &j){
 }
 
 
+
 namespace gen{
 
 ///////////////////////////////
@@ -152,7 +153,7 @@ void load(char *filename, int N)
  string line ;
  istringstream instream ;
  cout<<"1?: failbit="<<instream.fail()<<endl ;
- for(int n=0; n<Nelem; n++){
+ for(int n=0; n<Nelem; n++){	
    getline(fin, line) ;
    instream.str(line) ;
    instream.seekg(0) ;
@@ -172,6 +173,7 @@ void load(char *filename, int N)
 
    if(instream.fail()){ cout<<"reading failed at line "<<n<<"; exiting\n" ; exit(1) ; }
    // calculate in the old way
+  // cout << "I am here " <<endl;
    dvEffOld = surf[n].dsigma[0]*surf[n].u[0]+surf[n].dsigma[1]*surf[n].u[1]+
    surf[n].dsigma[2]*surf[n].u[2]+surf[n].dsigma[3]*surf[n].u[3] ;
    vEffOld += dvEffOld ;
@@ -179,6 +181,8 @@ void load(char *filename, int N)
      //cout<<"!!! dvOld!=dV " << dvEffOld <<"  " << dV << "  " << surf[n].tau <<endl ;
      nfail++ ;
    }
+  // cout<< "I calculated dvEffOld" << endl;
+  // cout<< "v2 is " << surf[n].u[0]*surf[n].u[0] - surf[n].u[1]*surf[n].u[1] - surf[n].u[2]*surf[n].u[2] - surf[n].u[3]*surf[n].u[3]<<endl;
    //if(nfail==100) exit(1) ;
    // ---- boost
    dsigma.SetXYZT(-surf[n].dsigma[1],-surf[n].dsigma[2],-surf[n].dsigma[3],surf[n].dsigma[0]) ;
@@ -190,6 +194,7 @@ void load(char *filename, int N)
    surf[n].dsigma[1] = -dsigma.X() ;
    surf[n].dsigma[2] = -dsigma.Y() ;
    surf[n].dsigma[3] = -dsigma.Z() ;
+  // cout<< "dsigma is"<< surf[n].dsigma[0]<<endl; 
    dvEff = surf[n].dsigma[0] ;
    vEff += dvEff ;
    if(dvMax<dvEff) dvMax = dvEff ;
@@ -235,6 +240,7 @@ void load(char *filename, int N)
  cout<<"NPART="<<NPART<<endl ;
  cout<<"dsigmaMax="<<dsigmaMax<<endl ;
  cumulantDensity = new double [NPART] ;
+// cout<<"I am here 2"<<endl;
 }
 
 
@@ -309,6 +315,7 @@ double integrand(double x, int q, int k, double *par)
 
   return -4*TMath::Pi()*c1*(1/x)*pow(mass,2+k)*1/(doublefactorial(2*q+1))*pow(cosh(log(x)),k-2*q)*pow(sinh(log(x)),2+2*q)*
          1/(exp(mass*cosh(log(x)) - mu)/T - stat)*(1 + stat*1/(exp(mass*cosh(log(x)) - mu)/T - stat));
+//cout<<"I am here in indegrand"<<endl;
 }
 
 double integral(int q, int k, double *par, int n)  //Midpoint rule
@@ -424,15 +431,25 @@ double beta_pi(double T, double J32)
 double *getA_ij(double *pi, double Pi, double T, double P_eq, double J32, double N20, double J30, double M10)
 {
   double *A_ij = new double[6];
+  int position = 0;
   for(int i=1; i<4; i++)
   {
     for(int j=i; j<4; j++)
     {
-      A_ij[index44(i-1,j-1)] = (1.0 + 1.0/(3.0* beta_Pi(T, P_eq, J32, N20, J30, M10)) * Pi) * delta_fnc(i,j) + 1./(2.*beta_pi(T, J32))*pi[index44(i,j)];
-      //cout << A_ij[index44(i,j)] << " " <<delta_fnc(i,j) <<endl;
+      A_ij[position] = (1.0 + 1.0/(3.0* beta_Pi(T, P_eq, J32, N20, J30, M10)) * Pi) * delta_fnc(i,j) + 1./(2.*beta_pi(T, J32))*pi[index44(i,j)];
+    //  cout << A_ij[position] << " " <<delta_fnc(i,j)<< " "<< i-1<<" "<<j-1<<" " <<position <<endl;
+      position +=1;
     }
   }
+for(int i=0;i<4;i++)
+{
+for(int j=i;j<4;j++)
+{
+cout<<i<<" "<<j<<" "<<index44(i,j)<<endl;
+}
+}
   return A_ij;
+//cout<< "I am here in Aij"<<endl;
 }
 
 TLorentzVector vector_vector(double *vec_a, TLorentzVector vec_b)
@@ -441,7 +458,7 @@ TLorentzVector vector_vector(double *vec_a, TLorentzVector vec_b)
   vec_c[0] = vec_a[0]*vec_b[0] + vec_a[1]*vec_b[1] + vec_a[2]*vec_b[2];
   vec_c[1] = vec_a[1]*vec_b[0] + vec_a[3]*vec_b[1] + vec_a[4]*vec_b[2];
   vec_c[2] = vec_a[2]*vec_b[0] + vec_a[4]*vec_b[1] + vec_a[5]*vec_b[2];
-  return vec_c;
+ return vec_c;
 }
 /*
 TLorentzVector vector_vector(double *vec_a, TLorentzVector vec_b)
@@ -497,6 +514,7 @@ double ffthermal(double *x, double *par)
 
   return x[0]*x[0]/(exp(sqrt(x[0]*x[0]+mass*mass)/(T+Pi*F(T, P_eq, N20, M10, J30)/
     beta_Pi(T, P_eq, J32, N20, J30, M10))-(mu/T + baryon_number*Pi*Q(T, P_eq, N20, J30, M10)/beta_Pi(T, P_eq, J32, N20, J30, M10))) - stat);
+//cout<<"I am here in ffthermal"<<endl;
 }
 
 
@@ -516,7 +534,7 @@ int generate()
  // Sigma meson needs to be excluded to generate correct multiplicities
  std::vector<smash::PdgCode> species_to_exclude{0x11, -0x11, 0x13, -0x13,
                                                 0x15, -0x15, 0x22, 0x9000221};
-
+ //cout<< "I am here in generate"<<endl;
  for(int iel=0; iel<Nelem; iel++){ // loop over all elements
   // ---> thermal densities, for each surface element
    J32 = 0.0; 
@@ -583,31 +601,39 @@ int generate()
     nToGen = rnd->Poisson(dvEff*totalDensity) ;
   }
    // ---- we generate a particle!
+  // cout<< iel << " " << ievent << " " << nToGen <<endl;
    for(int ipart=0; ipart<nToGen; ipart++){
 
   int isort = 0 ;
   // SMASH random number [0..1]
   double xsort = rnd->Rndm()*totalDensity ; // throw dice, particle sort
   while(cumulantDensity[isort]<xsort) isort++ ;
+ // cout<< isort << " "<<endl;
    auto& part = database[isort];
    const double J = part.spin() * 0.5;
    const double mass = part.mass() ;
    const double stat = static_cast<int>(round(2.*J)) & 1 ? -1. : 1. ;
+ // cout<<isort<< " " << J << " "<< mass << " "<< stat<<endl;
    // SMASH quantum charges for the hadron state
    const double muf = part.baryon_number()*surf[iel].mub + part.strangeness()*surf[iel].mus +
                part.charge()*surf[iel].muq ;
    if(muf>=mass) cout << " ^^ muf = " << muf << "  " << part.pdgcode() << endl ;
+ // cout<<isort<<" "<<J<<" "<<mass<<" "<<stat<<endl;
    fthermal->SetParameters(surf[iel].T, muf, mass, stat, surf[iel].Pi, part.baryon_number(), params::ecrit*1.15, J32, N20, J30, M10);
    //const double dfMax = part->GetFMax() ;
    int niter = 0 ; // number of iterations, for debug purposes
+ // cout<<isort<<" "<<J<<" "<<mass<<" "<<stat<<endl;
    do{ // fast momentum generation loop
    const double p = fthermal->GetRandom() ;
+   //cout<<isort<<" "<<J<<" "<<mass<<" "<<stat<<endl;
    //const double p = A_ij(surf[iel].pi, surf[iel].Pi, surf[iel].T, P_eq, J32, N20, J30, M10)*p_prim;
    const double phi = 2.0*TMath::Pi()*rnd->Rndm() ;
    const double sinth = -1.0 + 2.0*rnd->Rndm() ;
    mom_prim.SetPxPyPzE(p*sqrt(1.0-sinth*sinth)*cos(phi), p*sqrt(1.0-sinth*sinth)*sin(phi), p*sinth, 0 ) ;
    mom  = vector_vector(getA_ij(surf[iel].pi,  surf[iel].Pi,  surf[iel].T, params::ecrit*1.15, J32, N20, J30, M10), mom_prim);
    mom.SetPxPyPzE(mom.Px(),mom.Py(),mom.Pz(),sqrt(mom.Px()*mom.Px() + mom.Py()*mom.Py() + mom.Pz()*mom.Pz() + mass*mass));
+ // cout<<mom_prim.Px()<<" "<<mom.Px()<<" "<<mom_prim.Py()<<" "<<mom.Py()<<" "<<mom_prim.Pz()<<" "<<mom.Pz()<<endl; 
+ //cout<<isort<<" " << J<< " "<< mass <<" "<< stat<< " "<< mom.E()<<" "<<mom.Px()<<" "<<mom.Py()<<" "<<mom.Pz()<<endl;
    W = ( surf[iel].dsigma[0]*mom.E() + surf[iel].dsigma[1]*mom.Px() +
         surf[iel].dsigma[2]*mom.Py() + surf[iel].dsigma[3]*mom.Pz() ) / mom.E() ;
    /*
@@ -635,14 +661,20 @@ int generate()
    const double vx = surf[iel].u[1]/surf[iel].u[0]*cosh(etaF)/cosh(etaF+etaShift) ;
    const double vy = surf[iel].u[2]/surf[iel].u[0]*cosh(etaF)/cosh(etaF+etaShift) ;
    const double vz = tanh(etaF+etaShift) ;
+   //cout<< "vx is " << vx <<endl;
    mom.Boost(vx,vy,vz) ;
    smash::FourVector momentum(mom.E(), mom.Px(), mom.Py(), mom.Pz());
+  //cout<<isort<<" "<<J<<" "<<mass<<" "<<stat<<" "<<mom.E()<<" "<<mom.Px()<<" "<<mom.Py()<<" "<<mom.Pz()<<endl;
    smash::FourVector position(surf[iel].tau*cosh(surf[iel].eta+etaShift), surf[iel].x, surf[iel].y, surf[iel].tau*sinh(surf[iel].eta+etaShift));
    acceptParticle(ievent, &part, position, momentum) ;
+ // cout<<"Particle accepted"<<endl; 
   } // coordinate accepted
+// cout<<"coordinate accepted"<<endl;
   } // events loop
-  if(iel%(Nelem/50)==0) cout<<(iel*100)/Nelem<<" % done, maxiter= "<<nmaxiter<<endl ;
+// cout<<"events loop"<<endl;
+ if(iel%(Nelem/50)==0) cout<<(iel*100)/Nelem<<" % done, maxiter= "<<nmaxiter<<endl ;
  } // loop over all elements
+ cout<< "loop over all elements"<<endl;
  cout << "therm_failed elements: " <<ntherm_fail << endl ;
  delete fthermal ;
  return npart[0] ;
@@ -653,7 +685,7 @@ int generate()
 void acceptParticle(int ievent, const smash::ParticleTypePtr &ldef, smash::FourVector position, smash::FourVector momentum)
 {
  int& npart1 = npart[ievent] ;
-
+// cout<< "I am here in acceptParticle" << endl;
  smash::ParticleData* new_particle = new smash::ParticleData(*ldef);
  new_particle->set_4momentum(momentum);
  new_particle->set_4position(position);
