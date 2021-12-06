@@ -441,13 +441,6 @@ double *getA_ij(double *pi, double Pi, double T, double P_eq, double J32, double
       position +=1;
     }
   }
-for(int i=0;i<4;i++)
-{
-for(int j=i;j<4;j++)
-{
-cout<<i<<" "<<j<<" "<<index44(i,j)<<endl;
-}
-}
   return A_ij;
 //cout<< "I am here in Aij"<<endl;
 }
