@@ -7,7 +7,7 @@
 #include "const.h"
 #include "gen.h"
 #include "params.h"
-
+#include <map> 
 
 using namespace std ;
 
@@ -231,9 +231,9 @@ void load(char *filename, int N)
  const smash::ParticleTypeList& database = smash::ParticleType::list_all();
 
  // Dump list of hadronic states to terminal
- // for (auto& HadronState: database) {
- //   std::cout << HadronState << '\n';
- // }
+ for (auto& HadronState: database) {
+ std::cout << HadronState << '\n';
+ }
 
  // NPART = total number of hadron states
  NPART=database.size();
@@ -296,7 +296,6 @@ double integrand(double *x, int k, int l, int q, int k, double *mom)
     for(int j=1; j<4; j++)
     {
       pp += pow(-mom[i]*(gmumumatrix(i,j) - surf[iel].u[i]*surf[iel].u[j])*mom[j],q);
-
     }
   }
   
@@ -360,14 +359,11 @@ double integral(int q, int k, double *par)  //Rombergova metoda
     double sum;
     double h;
     double vysledek = 0.;
-
     long double *R[N];  //pole pro pravdìpodobnost P
   for (int i = 0; i < N; i++)
   {
     R[i] = (long double *)malloc(N * sizeof(long double));
   }
-
-
   R[0][0]=(double)0.5*(b-a)*(integrand(a,q,k, *par) + integrand(b,q,k, *par));
     for (int n=1;n<=N;n++)
     {
@@ -377,14 +373,11 @@ double integral(int q, int k, double *par)  //Rombergova metoda
             {
                 sum+=integrand((a + (2*k-1)*h),q,k, *par);
             }
-
         R[n][0]=0.5*R[n-1][0]+h*sum;
-
         for(int m=1; m<=n; m++){
             R[n][m] = (1/(pow(4,m)-1))*(pow(4,m)*R[n][m-1] - R[n-1][m-1]);
             //cout << n << "\t" << m << "\t" << R[n][m] << endl;
         }
-
         if(fabs(R[n][n])<0.0001 && n>4) {
           vysledek = 0;
           break;
@@ -472,7 +465,6 @@ double det_A(double *pi, double Pi, double T, double P_eq, double J32, double N2
     determinant = A[0]*A[4]*A[8] + A[1]*A[5]*A[6] + A[2]*A[3]*A[7] - A[2]*A[4]*A[6] - A[1]*A[3]*A[8] - A[0]*A[5]*A[7];
     return determinant;
 }
-
 double Z_n(double *pi, double Pi, double T, double P_eq, double J32, double N20, double J30, double M10)
 {
   return 1/det_A(pi, Pi, T, P_eq, J32, N20, J30, M10);
@@ -521,13 +513,74 @@ int generate()
  int ntherm_fail=0 ;
  double J32, J30, N20, M10 ; //sumation variables
  double partpar[4];
- //double P_eq = 1.0;
+ //double P_eq = 1.0; 
+
 
  // List species that should not be sampled: photon, electron, muon, tau
  // Sigma meson needs to be excluded to generate correct multiplicities
  std::vector<smash::PdgCode> species_to_exclude{0x11, -0x11, 0x13, -0x13,
                                                 0x15, -0x15, 0x22, 0x9000221};
  //cout<< "I am here in generate"<<endl;
+
+ // start of chemical potentials
+bool check = false;
+// init of map
+map<int, double> Potential;
+
+string temp, particle_id, chemical_potential;
+
+int numOfChars = 15000;
+char line[numOfChars];
+char delims[] = " ,\n\t";
+char *strtokresult = NULL;
+// number of particles is 361
+int npar, maxpar= 361;
+// input file
+FILE *infile;
+infile = fopen("/storage/brno12-cerit/home/sochorad/hydro/smash-hadron-sampler/src/chemical_potentials_ALICE.txt", "r");
+
+// reading chemical potentials values from file and asigning them to the map
+while(1)
+{
+  // read line and check, if EOF
+  if( !fgets(line, numOfChars, infile)
+   || ferror( infile ) || feof( infile ) )
+  {
+      break;
+  }
+
+  strtokresult = strtok(line, delims);
+  if( abs(stod(strtokresult) - surf[0].T) <= 0.0001)
+  {
+    npar = 0;
+    while( (strtokresult != NULL) && (npar < maxpar) )
+    {
+      //assign id and potential
+      strtokresult = strtok( NULL, delims);
+      particle_id = strtokresult;
+      strtokresult = strtok( NULL, delims);
+      chemical_potential = strtokresult;
+
+      //insert pair into the array
+      Potential.insert({stoi(particle_id), stod(chemical_potential)});
+      npar += 1;
+    }
+    //potentials for temperature were found
+    check = true;
+    break;
+  }
+}
+
+
+if (check == false)
+{
+  cout<< "Temperature for chemical potentials not found" <<endl;
+  return 1;
+}
+
+
+// end of chemical potentials
+
  for(int iel=0; iel<Nelem; iel++){ // loop over all elements
   // ---> thermal densities, for each surface element
    J32 = 0.0; 
@@ -542,7 +595,7 @@ int generate()
    for (auto& particle : database) {
     double density = 0. ;
     const bool exclude_species = std::find(species_to_exclude.begin(), species_to_exclude.end(), particle.pdgcode()) != species_to_exclude.end();
-    if (exclude_species || !particle.is_hadron() || particle.pdgcode().charmness() != 0) {
+    if (exclude_species || (!particle.is_hadron() && !particle.is_deuteron()) || particle.pdgcode().charmness() != 0) {
       density = 0;
     } else {
       const double mass = particle.mass() ;
@@ -552,8 +605,18 @@ int generate()
       const double J = particle.spin() * 0.5 ;
       const double stat = static_cast<int>(round(2.*J)) & 1 ? -1. : 1. ;
       // SMASH quantum charges for the hadron state
-      const double muf = particle.baryon_number()*surf[iel].mub + particle.strangeness()*surf[iel].mus +
-                 particle.charge()*surf[iel].muq ;
+      //const double muf = particle.baryon_number()*surf[iel].mub + particle.strangeness()*surf[iel].mus +
+      //           particle.charge()*surf[iel].muq ;
+      double muf;
+      if ( Potential.count(stoi(particle.pdgcode().string())) == 0 ) {
+        // not found
+        muf = 0.0;
+      } 
+      else {
+        // found
+        muf = Potential[stoi(particle.pdgcode().string())];
+      }
+
       partpar[0] = surf[iel].T;
       partpar[1] = muf;
       partpar[2] = mass;
@@ -608,8 +671,20 @@ int generate()
    const double stat = static_cast<int>(round(2.*J)) & 1 ? -1. : 1. ;
  // cout<<isort<< " " << J << " "<< mass << " "<< stat<<endl;
    // SMASH quantum charges for the hadron state
-   const double muf = part.baryon_number()*surf[iel].mub + part.strangeness()*surf[iel].mus +
-               part.charge()*surf[iel].muq ;
+
+   //const double muf = part.baryon_number()*surf[iel].mub + part.strangeness()*surf[iel].mus +
+   //            part.charge()*surf[iel].muq ;
+   double muf;
+    if ( Potential.count(stoi(part.pdgcode().string())) == 0 ) {
+      // not found
+      muf = 0.0;
+    } 
+    else {
+      // found
+      muf = Potential[stoi(part.pdgcode().string())];
+     // cout << part.pdgcode().string() << " " << muf << endl;
+    }
+
    if(muf>=mass) cout << " ^^ muf = " << muf << "  " << part.pdgcode() << endl ;
  // cout<<isort<<" "<<J<<" "<<mass<<" "<<stat<<endl;
    fthermal->SetParameters(surf[iel].T, muf, mass, stat, surf[iel].Pi, part.baryon_number(), params::ecrit*1.15, J32, N20, J30, M10);
@@ -672,7 +747,6 @@ int generate()
  delete fthermal ;
  return npart[0] ;
 }
-
 
 
 void acceptParticle(int ievent, const smash::ParticleTypePtr &ldef, smash::FourVector position, smash::FourVector momentum)
